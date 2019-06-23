@@ -1,4 +1,4 @@
-## [Text Analytics Dashboard](http://htmlpreview.github.io/?https://github.com/smotrova/Data-Science/blob/master/Flexdashboard-TextAnalytics/TextAnalyticaDashboard.html)
+## [Text Analytics Dashboard](https://smotrova.github.io/R-Flexdashboard-TextAnalytics/)
 
 ![](./WordCloudIcon.png)
 

@@ -1,0 +1,372 @@
+---
+title: "SPAM/HAM Dashboard"
+output: 
+  flexdashboard::flex_dashboard:
+    theme: cerulean
+    vertical_layout: scroll
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+```
+# Intro {.sidebar}
+
+This dashboard covers several possible classification techniques that might be use to predict Spam/Not Spam emails.
+
+# Data {data-orientation=rows}
+
+#### Separating spam from ham
+
+Nearly every email user has at some point encountered a "spam" email, which is an unsolicited message often advertising a product, containing links to malware, or attempting to scam the recipient. Roughly 80-90% of more than 100 billion emails sent each day are spam emails, most being sent from botnets of malware-infected computers. The remainder of emails are called "ham" emails.
+
+As a result of the huge number of spam emails being sent across the Internet each day, most email providers offer a spam filter that automatically flags likely spam messages and separates them from the ham. Though these filters use a number of techniques (e.g. looking up the sender in a so-called "Blackhole List" that contains IP addresses of likely spammers), most rely heavily on the analysis of the contents of an email via text analytics.
+
+In this problem, we will build and evaluate a spam filter using a publicly available dataset first described in the 2006 conference paper "Spam Filtering with Naive Bayes -- Which Naive Bayes?" by V. Metsis, I. Androutsopoulos, and G. Paliouras. The "ham" messages in this dataset come from the inbox of former Enron Managing Director for Research Vincent Kaminski, one of the inboxes in the Enron Corpus. One source of spam messages in this dataset is the SpamAssassin corpus, which contains hand-labeled spam messages contributed by Internet users. The remaining spam was collected by Project Honey Pot, a project that collects spam messages and identifies spammers by publishing email address that humans would know not to contact but that bots might target with spam. The full [dataset](https://prod-edxapp.edx-cdn.org/assets/courseware/v1/8ead76b237d8690efbe2b634d855f1dc/asset-v1:MITx+15.071x_3+1T2016+type@asset+block/emails.csv) we will use was constructed as roughly a 75/25 mix of the ham and spam messages.
+
+The dataset contains just two fields:
+
+* `text`: The text of the email.
+* `spam`: A binary variable indicating if the email was spam.
+
+The dataset and its description were proposed as a homework at the online MIT course ["The Analytics Edge"](https://www.edx.org/course/analytics-edge-mitx-15-071x-3) provided by [edX](https://www.edx.org/).
+
+#### Data
+
+```{r}
+# Loading data
+emails = read.csv("./Data/emails.csv", stringsAsFactors = F)
+str(emails)
+```
+
+
+# Word Clouds {data-orientation=rows}
+
+Row 1
+-----------------------------------------------------------------------
+### SPAM{.no-padding}
+
+```{r echo=FALSE}
+# Load packages
+library(dplyr)
+
+# Separate dataset int Spam/Ham messages
+SpamEmails = dplyr::filter(emails, spam==1)
+HamEmails = dplyr::filter(emails, spam==0)
+
+source('TermDocumentMatrix.R')
+source('WordCloud.R')
+WordCloudPlot(TermMatrix(SpamEmails$text) )
+
+```
+
+### HAM{.no-padding}
+
+```{r echo=FALSE}
+source('TermDocumentMatrix.R')
+source('WordCloud.R')
+WordCloudPlot(TermMatrix(HamEmails$text) )
+
+```
+
+Row 2
+-----------------------------------------------------------------------
+
+### Top20 Words SPAM
+
+```{r}
+source ('WordCloud.R')
+Top20Words(TermMatrix(SpamEmails$text) )
+```
+
+
+### Top20 Words HAM
+
+```{r}
+source ('WordCloud.R')
+Top20Words(TermMatrix(HamEmails$text) )
+```
+
+# Bag of Words {data-orientation=columns}
+
+Column
+-----------------------------------------------------------------------
+### Model Description
+
+#### Text Representation with Bag-of-Words Model
+In order to use linear classifier on textual data set, we need to transform our data into numeric data. A popular and simple method is called the bag-of-words model of text. A bag-of-words is a representation of text that describes the occurrence of words within a document. It involves two things: a vocabulary of known words and a measure of the presence of known words. It is called a “bag” of words, because any information about the order or structure of words in the document is discarded. The model is only concerned with whether known words occur in the document. 
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+# libraries for text mining
+library(tm)
+
+# read text data from file
+sentences <- read.table("./Data/full_set.txt", header=FALSE, 
+                        sep="\t", quote="", comment.char = "", 
+                        stringsAsFactors=FALSE)
+names(sentences) = c('message', 'labels')
+
+sentences$message[10]
+sentences$message[11]
+
+corpus = Corpus(VectorSource(sentences$message[10:11]))
+dtm = DocumentTermMatrix(corpus)
+as.matrix(dtm)
+```
+
+As the vocabulary size increases, so does the vector representation of documents. There are simple text transforming techniques that can be used to reduce to the size of the vocabulary:
+
+* Ignoring case
+* Ignoring punctuation
+* Ignoring stop words, like “a,” “of,” etc.
+* Reducing words to their stem
+
+
+
+# Logistic Regression {data-orientation=columns}
+
+Column
+-------------------------------------------------
+
+### Logistic Regression Model
+
+```{r include=FALSE}
+source('TermDocumentMatrix.R')
+EmailsDF = TextDataFrame(TermMatrix(emails$text))
+EmailsDF$Spam = as.factor(emails$spam)
+
+# Split the data
+set.seed(123)
+Spl = caTools::sample.split(EmailsDF$Spam, SplitRatio = 0.7)
+
+source('TrainTestDataset.R')
+train = Train(EmailsDF, Spl)
+test = Test(EmailsDF, Spl)
+```
+
+#### Model
+```{r echo=FALSE, warning=TRUE}
+
+source('LogisticRegression.R')
+log = LogisticRegressionFit(train)
+
+```
+
+Both of these messages often indicate overfitting.
+
+```{r echo=FALSE}
+summary(log)
+```
+
+Column {.tabset}
+-----------------------------------------------------------------------
+
+### Train
+#### Performance on Training Dataset
+
+```{r echo=FALSE}
+source('LogisticRegression.R')
+LogisticRegressionEval(log, train)
+```
+
+### Test
+#### Performance on Test Dataset
+
+```{r echo=FALSE}
+
+source('LogisticRegression.R')
+LogisticRegressionEval(log, test)
+
+```
+
+
+# Tree {data-orientation=columns}
+
+Column
+-------------------------------------------------
+#### Tree Structure
+
+```{r echo=FALSE}
+
+#source('Tree.R')
+source('TreeRPART.R')
+
+Tree = TreeFit()
+rpart.plot:: prp(Tree)
+
+```
+
+
+#### Tree Model
+Cost-complexity pruning parameter `cp` is defined using 10-fold cross-validation.
+
+```{r echo=FALSE}
+
+#summary(Tree)
+Tree
+
+```
+
+
+Column {.tabset}
+-------------------------------------------------
+### Train
+#### Performance on Training Dataset
+
+```{r echo=FALSE}
+#source('Tree.R')
+source('TreeRPART.R')
+TreeEval(Tree, train)
+```
+
+### Test
+#### Performance on Test Dataset
+
+```{r echo=FALSE}
+
+#source('Tree.R')
+
+source('TreeRPART.R')
+TreeEval(Tree, test)
+
+```
+
+
+
+
+# Random Forest {data-orientation=columns}
+
+Column
+-------------------------------------------------
+#### Random Forest Model
+
+```{r echo=FALSE}
+
+source('RandomForest.R')
+
+RF = RandomForestFit()
+RF
+
+```
+
+Column {.tabset}
+-------------------------------------------------
+### Train
+#### Performance on Training Dataset
+
+```{r echo=FALSE}
+source('RandomForest.R')
+RandomForestEval(RF, train)
+```
+
+### Test
+#### Performance on Test Dataset
+
+```{r echo=FALSE}
+source('RandomForest.R')
+RandomForestEval(RF, test)
+```
+
+
+# Support Vector Machines {data-orientation=columns}
+
+Column
+-------------------------------------------------
+#### Support Vector Machines
+
+```{r echo=FALSE}
+
+source('SupportVectorMachine.R')
+
+SVM = SVMFit()
+summary(SVM)
+
+```
+
+Column {.tabset}
+-------------------------------------------------
+### Train
+#### Performance on Training Dataset
+
+```{r echo=FALSE}
+source('SupportVectorMachine.R')
+SVMEval(SVM, train)
+```
+
+### Test
+#### Performance on Test Dataset
+
+```{r echo=FALSE}
+source('SupportVectorMachine.R')
+SVMEval(SVM, test)
+
+```
+
+# Perfromances {data-orientation=columns}
+
+Column 1
+------------------
+### _ROC_ curves for the training set
+
+```{r echo=FALSE}
+
+library(ggplot2)
+library(ggthemes)
+library(ggsci)
+
+roc_train = rbind.data.frame( cbind(LogisticRegressionROC(log, train), 
+                 Model = rep("LR",nrow(LogisticRegressionROC(log, train))) ),
+                 
+                 cbind(TreeROC(Tree, train), 
+                       Model = rep("Tree",nrow(TreeROC(Tree, train))) ),
+                 
+                 cbind(RandomForestROC(RF, train), 
+                       Model = rep("RF",nrow(RandomForestROC(RF, train))) ),
+                 
+                 cbind(SVMROC(SVM, train), 
+                       Model = rep("SVM",nrow(SVMROC(SVM, train))) )
+                 )
+
+
+ggplot(roc_train, aes(FP, TP, col = Model)) + 
+  xlab("False positive rate") +
+  ylab("True positive rate") +
+  geom_line(data = roc_train[roc_train$Model == 'LR', ], size = 1.0) +
+  geom_line(data = roc_train[roc_train$Model == 'Tree', ], size = 1.0) +
+  geom_line(data = roc_train[roc_train$Model == 'RF', ], size = 1.0) +
+  geom_line(data = roc_train[roc_train$Model == 'SVM', ], size = 1.0)+
+  scale_color_d3()
+
+```
+
+
+Column 2
+------------------
+### _ROC_ curves for the test set
+
+```{r echo=FALSE}
+roc_test = rbind.data.frame( cbind(LogisticRegressionROC(log, test), 
+                                    Model = rep("LR",nrow(LogisticRegressionROC(log, test))) ),
+                              
+                              cbind(TreeROC(Tree, test), 
+                                    Model = rep("Tree",nrow(TreeROC(Tree, test))) ),
+                              
+                              cbind(RandomForestROC(RF, test), 
+                                    Model = rep("RF",nrow(RandomForestROC(RF, test))) ),
+                              
+                              cbind(SVMROC(SVM, test), 
+                                    Model = rep("SVM",nrow(SVMROC(SVM, test))) )
+                              )
+
+
+ggplot(roc_test, aes(FP, TP, col = Model)) + 
+  xlab("False positive rate") +
+  ylab("True positive rate") +
+  geom_line(data = roc_test[roc_test$Model == 'LR', ], size = 1.0) +
+  geom_line(data = roc_test[roc_test$Model == 'Tree', ], size = 1.0) +
+  geom_line(data = roc_test[roc_test$Model == 'RF', ], size = 1.0) +
+  geom_line(data = roc_test[roc_test$Model == 'SVM', ], size = 1.0)+
+  scale_color_d3()
+
+
+```
+
